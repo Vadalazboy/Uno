@@ -349,7 +349,7 @@ function showJoin() {
 
 function shareRoom() {
   const code = state.roomCode;
-  const botUrl = `t.me/Unopartyrambot/myapp?startapp=room_${code}`;
+  const botUrl = `t.me/Unopartyrambot/Unobotram?startapp=room_${code}`;
   if (tg?.switchInlineQuery) {
     tg.switchInlineQuery(`Сыграем в UNO! Код: ${code}`, ['users','groups']);
   } else if (navigator.share) {
