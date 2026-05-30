@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>UNO</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--red:#E63946;--blue:#457B9D;--green:#2D6A4F;--yellow:#E9C46A;--card-w:56px;--card-h:84px}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#0D0D1A;color:#fff;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;user-select:none}
+.hidden{display:none!important}
+
+/* LOBBY */
+#lobby{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;gap:18px}
+.logo{font-size:80px;font-weight:900;letter-spacing:-4px;color:#fff;text-shadow:0 0 40px rgba(230,57,70,.8),-2px 2px 0 #E63946,2px -2px 0 #F4A261}
+.subtitle{color:rgba(255,255,255,.45);font-size:14px}
+.room-box{width:100%;max-width:320px;display:flex;flex-direction:column;gap:12px}
+.room-box input{background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.2);border-radius:14px;padding:14px 18px;color:#fff;font-size:20px;outline:none;text-align:center;letter-spacing:6px;text-transform:uppercase}
+.room-box input::placeholder{letter-spacing:0;font-size:15px;color:rgba(255,255,255,.3)}
+.btn{width:100%;padding:16px;border-radius:14px;border:none;cursor:pointer;font-size:16px;font-weight:700;transition:transform .1s;text-align:center}
+.btn:active{transform:scale(.96)}
+.btn-primary{background:linear-gradient(135deg,#E63946,#F4A261);color:#fff}
+.btn-secondary{background:rgba(255,255,255,.1);color:#fff}
+.btn-green{background:linear-gradient(135deg,#1E8449,#52B788);color:#fff}
+.btn:disabled{opacity:.4;cursor:default}
+.code-big{font-size:32px;font-weight:900;letter-spacing:8px;color:#F4A261;text-align:center}
+.hint{font-size:12px;color:rgba(255,255,255,.4);text-align:center}
+
+/* WAITING */
+#waiting{display:flex;flex-direction:column;align-items:center;padding:20px 16px;gap:14px;min-height:100vh}
+.wait-title{font-size:22px;font-weight:700;margin-top:10px}
+.players-list{width:100%;max-width:360px;display:flex;flex-direction:column;gap:8px}
+.player-item{background:rgba(255,255,255,.07);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px}
+.player-avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
+
+/* GAME */
+#game{display:flex;flex-direction:column;min-height:100vh;padding:8px 10px}
+.opponents{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:6px;min-height:48px}
+.opp-card{background:rgba(255,255,255,.07);border-radius:10px;padding:6px 12px;display:flex;align-items:center;gap:6px;font-size:13px}
+.opp-card.active-player{border:2px solid #F4A261;background:rgba(244,162,97,.18)}
+.opp-count{background:rgba(0,0,0,.35);border-radius:6px;padding:2px 8px;font-weight:700;font-size:12px}
+.turn-info{text-align:center;padding:4px;font-size:14px;color:rgba(255,255,255,.6);min-height:24px}
+.turn-info strong{color:#F4A261}
+.pile-area{flex:1;display:flex;align-items:center;justify-content:center;gap:24px}
+.deck-pile{cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px}
+.deck-pile-label{font-size:11px;color:rgba(255,255,255,.4)}
+
+/* UNO CARD */
+.uno-card{width:var(--card-w);height:var(--card-h);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;position:relative;border:3px solid rgba(255,255,255,.35);box-shadow:0 4px 14px rgba(0,0,0,.5);transition:transform .15s;flex-shrink:0}
+.uno-card.red{background:#C0392B}
+.uno-card.blue{background:#2980B9}
+.uno-card.green{background:#1E8449}
+.uno-card.yellow{background:#D4AC0D;color:#1A1A2E}
+.uno-card.wild{background:conic-gradient(#C0392B 0 90deg,#D4AC0D 90deg 180deg,#1E8449 180deg 270deg,#2980B9 270deg)}
+.uno-card.back{background:radial-gradient(circle at 50%,#E63946 28%,#1A1A2E 28%);border-color:#E63946}
+.uno-card.playable{transform:translateY(-8px);box-shadow:0 10px 22px rgba(0,0,0,.5),0 0 14px rgba(255,255,255,.25);cursor:pointer}
+.uno-card.selected{transform:translateY(-18px);box-shadow:0 14px 30px rgba(0,0,0,.6),0 0 20px rgba(255,220,50,.4);cursor:pointer}
+.uno-card.unplayable{opacity:.45}
+.corner{position:absolute;font-size:11px;font-weight:900;line-height:1}
+.corner.tl{top:5px;left:6px}
+.corner.br{bottom:5px;right:6px;transform:rotate(180deg)}
+.hand-area{display:flex;flex-direction:column;align-items:center;gap:8px;padding-bottom:12px}
+.hand-label{font-size:12px;color:rgba(255,255,255,.35)}
+.hand-scroll{display:flex;gap:4px;overflow-x:auto;padding:12px 16px;max-width:100vw;scrollbar-width:none}
+.hand-scroll::-webkit-scrollbar{display:none}
+
+/* COLOR PICKER */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:100}
+.color-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:16px}
+.color-btn{width:110px;height:110px;border-radius:22px;border:3px solid rgba(255,255,255,.3);cursor:pointer;font-size:32px;display:flex;align-items:center;justify-content:center}
+.color-btn:active{transform:scale(.92)}
+.color-btn.red{background:#C0392B}
+.color-btn.blue{background:#2980B9}
+.color-btn.green{background:#1E8449}
+.color-btn.yellow{background:#D4AC0D}
+
+/* UNO BUTTON */
+.uno-shout{position:fixed;bottom:170px;right:14px;background:linear-gradient(135deg,#E63946,#F4A261);width:60px;height:60px;border-radius:50%;border:none;font-size:11px;font-weight:900;color:#fff;cursor:pointer;animation:bounce 1s infinite;z-index:50;box-shadow:0 4px 18px rgba(230,57,70,.7)}
+@keyframes bounce{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+
+/* TOAST */
+.toast{position:fixed;top:56px;left:50%;transform:translateX(-50%);background:rgba(20,20,40,.97);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px 22px;font-size:14px;font-weight:600;z-index:200;animation:fi 2.5s forwards;pointer-events:none;white-space:nowrap}
+@keyframes fi{0%{opacity:0;top:36px}15%{opacity:1;top:56px}70%{opacity:1}100%{opacity:0}}
+
+/* RESULT */
+#result{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:20px;padding:24px;text-align:center}
+.result-icon{font-size:88px}
+.result-title{font-size:38px;font-weight:900}
+.result-sub{color:rgba(255,255,255,.5);font-size:16px}
+</style>
+</head>
+<body>
+
+<!-- LOBBY -->
+<div id="lobby">
+  <div class="logo">UNO</div>
+  <div class="subtitle">Карточная игра для друзей в Telegram</div>
+  <div class="room-box" id="menu">
+    <button class="btn btn-primary" id="btn-create">🎲 Создать игру</button>
+    <button class="btn btn-secondary" id="btn-join-show">🔗 Войти по коду</button>
+  </div>
+  <div class="room-box hidden" id="create-box">
+    <div class="hint">Код вашей комнаты</div>
+    <div class="code-big" id="room-code-val">...</div>
+    <button class="btn btn-green" id="btn-share">📤 Пригласить друзей</button>
+    <button class="btn btn-secondary" id="btn-back-create">← Назад</button>
+  </div>
+  <div class="room-box hidden" id="join-box">
+    <input id="join-code" placeholder="Введите код" maxlength="4" autocomplete="off" spellcheck="false">
+    <button class="btn btn-primary" id="btn-join">Войти →</button>
+    <button class="btn btn-secondary" id="btn-back-join">← Назад</button>
+  </div>
+</div>
+
+<!-- WAITING -->
+<div id="waiting" class="hidden">
+  <div class="wait-title">Ожидаем игроков</div>
+  <div class="hint">Код: <span id="wait-code" style="color:#F4A261;font-weight:700;letter-spacing:6px;font-size:22px"></span></div>
+  <button class="btn btn-secondary" style="max-width:320px" id="btn-share2">📤 Пригласить</button>
+  <div class="players-list" id="players-list"></div>
+  <button class="btn btn-primary" id="start-btn" style="max-width:320px" disabled>▶ Начать игру</button>
+  <button class="btn btn-secondary" style="max-width:320px" id="btn-leave-wait">← Выйти</button>
+</div>
+
+<!-- GAME -->
+<div id="game" class="hidden">
+  <div class="opponents" id="opponents"></div>
+  <div class="turn-info" id="turn-info"></div>
+  <div class="pile-area">
+    <div class="deck-pile" id="deck-btn">
+      <div class="uno-card back"></div>
+      <div class="deck-pile-label">Взять</div>
+    </div>
+    <div><div class="uno-card" id="top-card"></div></div>
+    <div id="dir-arrow" style="font-size:24px">🔄</div>
+  </div>
+  <div class="hand-area">
+    <div class="hand-label">Ваши карты</div>
+    <div class="hand-scroll" id="hand"></div>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div id="result" class="hidden">
+  <div class="result-icon" id="res-icon">🏆</div>
+  <div class="result-title" id="res-title"></div>
+  <div class="result-sub" id="res-sub"></div>
+  <button class="btn btn-primary" id="btn-again" style="max-width:280px">🔄 Играть снова</button>
+</div>
+
+<!-- COLOR PICKER -->
+<div class="overlay hidden" id="color-picker">
+  <div>
+    <div style="text-align:center;margin-bottom:12px;font-size:18px;font-weight:700">Выберите цвет</div>
+    <div class="color-grid">
+      <button class="color-btn red"    data-color="red">🔴</button>
+      <button class="color-btn blue"   data-color="blue">🔵</button>
+      <button class="color-btn green"  data-color="green">🟢</button>
+      <button class="color-btn yellow" data-color="yellow">🟡</button>
+    </div>
+  </div>
+</div>
+
+<!-- UNO SHOUT -->
+<button class="uno-shout hidden" id="uno-btn">UNO!</button>
+
+<script>
+// ── Telegram ─────────────────────────────────────────────────
+const tg = window.Telegram?.WebApp;
+if(tg){ tg.expand(); tg.ready(); }
+
+const ME = (tg?.initDataUnsafe?.user)
+  ? {id: 'tg_'+tg.initDataUnsafe.user.id, name: tg.initDataUnsafe.user.first_name || 'Игрок'}
+  : {id: 'u_'+Math.random().toString(36).substr(2,8), name: 'Игрок'+Math.floor(Math.random()*99)};
+
+// ── Storage (localStorage = same-device demo; сервер = HTTP API) ──────────
+const API = location.origin; // Автоматически использует текущий домен Railway
+
+async function roomSave(code, data) {
+  if(API) { await fetch(API+'/room/'+code, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); return; }
+  localStorage.setItem('uno_'+code, JSON.stringify(data));
+}
+async function roomLoad(code) {
+  if(API) { try{ const r=await fetch(API+'/room/'+code); return r.ok?await r.json():null; }catch{return null;} }
+  try{ const d=localStorage.getItem('uno_'+code); return d?JSON.parse(d):null; }catch{return null;}
+}
+
+// ── Deck ──────────────────────────────────────────────────────
+const COLORS=['red','blue','green','yellow'];
+const VALUES=['0','1','2','3','4','5','6','7','8','9','Skip','Reverse','+2'];
+
+function makeDeck(){
+  const d=[];
+  for(const c of COLORS) for(const v of VALUES){ d.push({c,v}); if(v!=='0') d.push({c,v}); }
+  for(let i=0;i<4;i++) d.push({c:'wild',v:'Wild'});
+  for(let i=0;i<4;i++) d.push({c:'wild',v:'+4'});
+  return shuffle(d);
+}
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=0|Math.random()*(i+1);[a[i],a[j]]=[a[j],a[i]];}return a; }
+function genCode(){ return Math.random().toString(36).substr(2,4).toUpperCase(); }
+
+// ── State ─────────────────────────────────────────────────────
+let G = { roomCode:null, isHost:false, selectedCard:null, pendingWild:null };
+let pollId = null;
+
+function startPoll(fn,ms=1500){ stopPoll(); pollId=setInterval(fn,ms); }
+function stopPoll(){ clearInterval(pollId); pollId=null; }
+
+// ── UI helpers ────────────────────────────────────────────────
+function show(id){
+  ['lobby','waiting','game','result'].forEach(s=>{
+    document.getElementById(s).classList.toggle('hidden', s!==id);
+  });
+}
+function toast(msg){
+  const t=document.createElement('div'); t.className='toast'; t.textContent=msg;
+  document.body.appendChild(t); setTimeout(()=>t.remove(),2600);
+}
+function cardSym(v){ return {Skip:'⊘',Reverse:'↺','+2':'+2','+4':'+4',Wild:'🌈'}[v]||v; }
+
+function renderCardEl(el, card, playable, selected){
+  el.className='uno-card '+card.c+(playable?' playable':'')+(selected?' selected':'')+((!playable&&card.c!=='back')?' unplayable':'');
+  el.innerHTML=`<span class="corner tl">${cardSym(card.v)}</span>`
+    +`<span style="font-size:${card.v.length>2?'15px':'26px'}">${cardSym(card.v)}</span>`
+    +`<span class="corner br">${cardSym(card.v)}</span>`;
+}
+
+// ── Lobby buttons ─────────────────────────────────────────────
+document.getElementById('btn-create').onclick = async () => {
+  const code = genCode();
+  G.roomCode = code; G.isHost = true;
+  const room = { players:[{id:ME.id,name:ME.name,isHost:true}], started:false, gs:null };
+  await roomSave(code, room);
+  document.getElementById('room-code-val').textContent = code;
+  document.getElementById('wait-code').textContent = code;
+  document.getElementById('menu').classList.add('hidden');
+  document.getElementById('create-box').classList.remove('hidden');
+  show('lobby');
+  // move to waiting after short moment
+  setTimeout(()=>{ show('waiting'); renderWaiting([{id:ME.id,name:ME.name,isHost:true}]); startPoll(pollWait); }, 800);
+};
+
+document.getElementById('btn-join-show').onclick = () => {
+  document.getElementById('menu').classList.add('hidden');
+  document.getElementById('join-box').classList.remove('hidden');
+};
+
+document.getElementById('btn-back-create').onclick = showLobbyMenu;
+document.getElementById('btn-back-join').onclick   = showLobbyMenu;
+
+function showLobbyMenu(){
+  document.getElementById('menu').classList.remove('hidden');
+  document.getElementById('create-box').classList.add('hidden');
+  document.getElementById('join-box').classList.add('hidden');
+  show('lobby');
+}
+
+document.getElementById('btn-join').onclick = async () => {
+  const code = document.getElementById('join-code').value.trim().toUpperCase();
+  if(code.length<4){ toast('Введите 4-значный код'); return; }
+  const room = await roomLoad(code);
+  if(!room){ toast('❌ Комната не найдена'); return; }
+  if(room.started){ toast('Игра уже идёт'); return; }
+  if(room.players.length>=6){ toast('Комната заполнена'); return; }
+  if(!room.players.find(p=>p.id===ME.id)) room.players.push({id:ME.id,name:ME.name,isHost:false});
+  await roomSave(code, room);
+  G.roomCode=code; G.isHost=false;
+  document.getElementById('wait-code').textContent=code;
+  show('waiting');
+  renderWaiting(room.players);
+  startPoll(pollWait);
+};
+
+function shareRoom(){
+  const code=G.roomCode; if(!code) return;
+  const url=location.origin+location.pathname+'?room='+code;
+  const text='🎴 Сыграем в UNO!\nКод: '+code+'\n'+url;
+  if(tg?.openTelegramLink){
+    tg.openTelegramLink('https://t.me/share/url?url='+encodeURIComponent(url)+'&text='+encodeURIComponent('🎴 Сыграем в UNO! Код: '+code));
+  } else if(navigator.share){ navigator.share({title:'UNO',text,url});
+  } else { navigator.clipboard?.writeText(text).then(()=>toast('📋 Ссылка скопирована!')); }
+}
+document.getElementById('btn-share').onclick  = shareRoom;
+document.getElementById('btn-share2').onclick = shareRoom;
+
+document.getElementById('btn-leave-wait').onclick = ()=>{ stopPoll(); showLobbyMenu(); };
+
+// ── Waiting room ──────────────────────────────────────────────
+function renderWaiting(players){
+  const colors=['#E63946','#457B9D','#1E8449','#D4AC0D','#9B59B6','#E67E22'];
+  document.getElementById('players-list').innerHTML=players.map((p,i)=>
+    `<div class="player-item">
+      <div class="player-avatar" style="background:${colors[i]}22;color:${colors[i]}">${p.name[0].toUpperCase()}</div>
+      <div><div style="font-weight:600">${p.name}</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.4)">${p.isHost?'🎖 Хост':'Игрок'}</div></div>
+    </div>`).join('');
+  const btn=document.getElementById('start-btn');
+  const amHost=players.find(p=>p.id===ME.id)?.isHost;
+  btn.disabled=!amHost||players.length<2;
+  btn.textContent=!amHost?'⏳ Ждём хоста...':(players.length<2?'▶ Нужен ещё игрок':'▶ Начать игру!');
+}
+
+async function pollWait(){
+  const room=await roomLoad(G.roomCode); if(!room) return;
+  renderWaiting(room.players);
+  document.getElementById('wait-code').textContent=G.roomCode;
+  if(room.started && room.gs){ stopPoll(); applyState(room.gs); show('game'); startPoll(pollGame,1200); }
+}
+
+document.getElementById('start-btn').onclick = async () => {
+  const room=await roomLoad(G.roomCode); if(!room) return;
+  if(room.players.length<2){ toast('Нужно минимум 2 игрока!'); return; }
+  const deck=makeDeck();
+  const hands={};
+  for(const p of room.players) hands[p.id]=deck.splice(0,7);
+  let top; do{ top=deck.shift(); } while(top.c==='wild');
+  const gs={ deck, hands, top, cc:top.c, cp:0, dir:1,
+    players:room.players.map(p=>({id:p.id,name:p.name})), winner:null };
+  room.started=true; room.gs=gs;
+  await roomSave(G.roomCode, room);
+  stopPoll(); applyState(gs); show('game'); startPoll(pollGame,1200);
+};
+
+// ── Game poll ─────────────────────────────────────────────────
+async function pollGame(){
+  const room=await roomLoad(G.roomCode); if(!room||!room.gs) return;
+  const gs=room.gs;
+  if(gs.winner){ stopPoll(); showResult(gs); return; }
+  applyState(gs);
+}
+
+// ── Apply state ───────────────────────────────────────────────
+let _lastVer=0;
+function applyState(gs){
+  const ver=gs.ver||0;
+  if(ver && ver===_lastVer) return;
+  _lastVer=ver;
+  const myHand=gs.hands[ME.id]||[];
+  const cp=gs.players[gs.cp];
+  const myTurn=cp?.id===ME.id;
+
+  // Opponents
+  let html='';
+  gs.players.forEach((p,i)=>{ if(p.id===ME.id)return;
+    const cnt=(gs.hands[p.id]||[]).length;
+    html+=`<div class="opp-card ${i===gs.cp?'active-player':''}">
+      <span style="font-size:13px">${p.name.split(' ')[0]}</span>
+      <span class="opp-count">${cnt}</span></div>`;
+  });
+  document.getElementById('opponents').innerHTML=html;
+  document.getElementById('dir-arrow').textContent=gs.dir===1?'🔄':'🔃';
+  document.getElementById('turn-info').innerHTML=myTurn
+    ?'<strong>Ваш ход!</strong> Нажмите карту'
+    :`Ход: <strong>${cp?.name||'...'}</strong>`;
+
+  // Top card
+  const tc=document.getElementById('top-card');
+  renderCardEl(tc,{c:gs.cc,v:gs.top.v},false,false);
+
+  // Hand
+  renderHand(myHand, gs, myTurn);
+
+  // UNO button
+  document.getElementById('uno-btn').classList.toggle('hidden', !(myTurn&&myHand.length===1));
+}
+
+function canPlay(card, gs){
+  if(card.c==='wild') return true;
+  return card.c===gs.cc || card.v===gs.top.v;
+}
+
+function renderHand(hand, gs, myTurn){
+  const container=document.getElementById('hand');
+  container.innerHTML='';
+  hand.forEach((card,i)=>{
+    const ok=myTurn&&canPlay(card,gs);
+    const sel=G.selectedCard===i;
+    const el=document.createElement('div');
+    renderCardEl(el,card,ok,sel);
+    if(!ok && myTurn) el.classList.add('unplayable');
+    if(ok||!myTurn){
+      el.onclick=()=>{
+        if(!myTurn) return;
+        if(G.selectedCard===i){ doPlayCard(i,gs); }
+        else{ G.selectedCard=i; renderHand(hand,gs,myTurn); }
+      };
+    }
+    container.appendChild(el);
+  });
+}
+
+// ── Play card ─────────────────────────────────────────────────
+async function doPlayCard(idx, gs){
+  const card=(gs.hands[ME.id]||[])[idx];
+  if(!card) return;
+  G.selectedCard=null;
+  if(card.c==='wild'){ G.pendingWild=idx; document.getElementById('color-picker').classList.remove('hidden'); return; }
+  await commitPlay(idx, card.c, gs);
+}
+
+document.querySelectorAll('.color-btn').forEach(btn=>{
+  btn.onclick=async()=>{
+    document.getElementById('color-picker').classList.add('hidden');
+    if(G.pendingWild===null) return;
+    const room=await roomLoad(G.roomCode); if(!room?.gs) return;
+    await commitPlay(G.pendingWild, btn.dataset.color, room.gs);
+    G.pendingWild=null;
+  };
+});
+
+async function commitPlay(idx, chosenColor, gs){
+  const room=await roomLoad(G.roomCode); if(!room?.gs) return;
+  const lgs=room.gs;
+  if(lgs.players[lgs.cp]?.id!==ME.id){ toast('Не ваш ход'); return; }
+  const hand=lgs.hands[ME.id]; if(!hand) return;
+  const card=hand[idx]; if(!card) return;
+  if(!canPlay(card,lgs)){ toast('Нельзя сыграть эту карту'); return; }
+
+  hand.splice(idx,1);
+  lgs.top=card; lgs.cc=chosenColor;
+  lgs.ver=Date.now();
+
+  if(hand.length===0){ lgs.winner=ME.id; lgs.winnerName=ME.name; }
+  else { applyEffect(lgs,card); }
+
+  room.gs=lgs;
+  await roomSave(G.roomCode,room);
+  applyState(lgs);
+  if(lgs.winner){ stopPoll(); showResult(lgs); }
+}
+
+function applyEffect(gs, card){
+  const n=gs.players.length;
+  let next=(gs.cp+gs.dir+n)%n;
+  if(card.v==='Skip'){ next=(next+gs.dir+n)%n; }
+  else if(card.v==='Reverse'){
+    gs.dir*=-1; next=(gs.cp+gs.dir+n)%n;
+    if(n===2) next=gs.cp;
+  } else if(card.v==='+2'){
+    const vid=gs.players[next].id;
+    gs.hands[vid]=gs.hands[vid]||[];
+    gs.hands[vid].push(...gs.deck.splice(0,2));
+    next=(next+gs.dir+n)%n;
+  } else if(card.v==='+4'){
+    const vid=gs.players[next].id;
+    gs.hands[vid]=gs.hands[vid]||[];
+    gs.hands[vid].push(...gs.deck.splice(0,4));
+    next=(next+gs.dir+n)%n;
+  }
+  gs.cp=next;
+}
+
+// ── Draw card ─────────────────────────────────────────────────
+document.getElementById('deck-btn').onclick = async () => {
+  const room=await roomLoad(G.roomCode); if(!room?.gs) return;
+  const gs=room.gs;
+  if(gs.players[gs.cp]?.id!==ME.id){ toast('Не ваш ход'); return; }
+  const card=gs.deck.shift();
+  if(!card){ toast('Колода пуста!'); return; }
+  gs.hands[ME.id]=gs.hands[ME.id]||[];
+  gs.hands[ME.id].push(card);
+  if(!canPlay(card,gs)){
+    const n=gs.players.length;
+    gs.cp=(gs.cp+gs.dir+n)%n;
+  } else { toast('Карту можно сыграть — нажмите на неё'); }
+  gs.ver=Date.now();
+  room.gs=gs;
+  await roomSave(G.roomCode,room);
+  applyState(gs);
+};
+
+document.getElementById('uno-btn').onclick = ()=>toast('🎉 UNO!');
+
+// ── Result ────────────────────────────────────────────────────
+function showResult(gs){
+  const won=gs.winner===ME.id;
+  document.getElementById('res-icon').textContent =won?'🏆':'😢';
+  document.getElementById('res-title').textContent=won?'Вы победили!':gs.winnerName+' победил!';
+  document.getElementById('res-sub').textContent  =won?'Отличная игра! 🎉':'В следующий раз повезёт!';
+  show('result');
+}
+
+document.getElementById('btn-again').onclick = async ()=>{
+  stopPoll();
+  const room=await roomLoad(G.roomCode);
+  if(room){ room.started=false; room.gs=null; await roomSave(G.roomCode,room); }
+  G={roomCode:null,isHost:false,selectedCard:null,pendingWild:null};
+  showLobbyMenu();
+};
+
+// ── Auto-join from URL ────────────────────────────────────────
+(()=>{
+  const p=new URLSearchParams(location.search);
+  const code=p.get('room')||(tg?.initDataUnsafe?.start_param?.replace('room_',''))||null;
+  if(code){
+    document.getElementById('join-code').value=code.toUpperCase();
+    document.getElementById('menu').classList.add('hidden');
+    document.getElementById('join-box').classList.remove('hidden');
+    setTimeout(()=>document.getElementById('btn-join').click(),400);
+  } else { showLobbyMenu(); }
+})();
+</script>
+</body>
+</html>
